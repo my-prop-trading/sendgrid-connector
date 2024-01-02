@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -11,7 +13,7 @@ pub struct EmailAddress {
 pub struct Personalization {
     pub to: Vec<EmailAddress>,
     #[serde(rename = "dynamic_template_data", skip_serializing_if = "Option::is_none")]
-    pub dynamic_template_data: Option<serde_json::Value>, // Or you can create a specific struct for dynamic data
+    pub dynamic_template_data: Option<HashMap<String, String>>, 
     pub bcc: Option<Vec<EmailAddress>>,
 }
 

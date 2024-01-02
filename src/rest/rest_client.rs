@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::rest::config::SendGridConfig;
 use crate::rest::endpoints::SendGridEndpoint;
 use crate::rest::errors::Error;
@@ -48,11 +50,11 @@ impl SendGridRestClient {
     pub async fn send_template(
         &self,
         email_from: &str,
-        email_to: &str,
-        email_bcc: &str,
+        email_to: Vec<EmailAddress>,
+        email_bcc: Vec<EmailAddress>,
         subject: &str,
         template_id: &str,
-        template_placeholders: Option<serde_json::Value>,
+        placeholders: Option<HashMap<String, String>>,
     ) -> Result<SendGridEmailResponse, Error> {
 
         let email = SendGridEmail {
@@ -61,17 +63,9 @@ impl SendGridRestClient {
                 name: None,
             },
             personalizations: vec![Personalization {
-                to: vec![EmailAddress {
-                    email: email_to.into(),
-                    name: None,
-                }],
-                bcc: Some(vec![
-                    EmailAddress {
-                        email: email_bcc.into(),
-                        name: None,
-                    },
-                ]), 
-                dynamic_template_data: template_placeholders,
+                to: email_to,
+                bcc: Some(email_bcc), 
+                dynamic_template_data: placeholders,
             }],
             subject: subject.into(),
             template_id: Some(template_id.to_string()),
