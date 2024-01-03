@@ -34,8 +34,6 @@ pub struct SendGridEmail {
     pub template_id: Option<String>,
     #[serde(rename = "subject")]
     pub subject: String,
-    #[serde(rename = "content")]
-    pub content: Vec<Content>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

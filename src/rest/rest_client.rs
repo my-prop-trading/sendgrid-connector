@@ -69,16 +69,6 @@ impl SendGridRestClient {
             }],
             subject: subject.into(),
             template_id: Some(template_id.to_string()),
-            content: vec![
-                Content {
-                    content_type: "text/plain".to_string(),
-                    value: "Hello, this is the plaintext content.".to_string(),
-                },
-                // Content {
-                //     content_type: "text/html".to_string(),
-                //     value: "<p>Hello, this is the HTML content.</p>".to_string(),
-                // },
-            ],
         };
 
         let serialized = serde_json::to_string(&email)?;
