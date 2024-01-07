@@ -51,6 +51,7 @@ impl SendGridRestClient {
         &self,
         email_from: &str,
         email_to: Vec<EmailAddress>,
+        email_cc: Vec<EmailAddress>,
         email_bcc: Vec<EmailAddress>,
         subject: &str,
         template_id: &str,
@@ -64,6 +65,7 @@ impl SendGridRestClient {
             },
             personalizations: vec![Personalization {
                 to: email_to,
+                cc: Some(email_cc), 
                 bcc: Some(email_bcc), 
                 dynamic_template_data: placeholders,
             }],

@@ -20,12 +20,17 @@ async fn main() {
 
 async fn send_template(client: &SendGridRestClient, template_id: &str, email_to: &str, subject: &str) {
     let email_from = std::env::var("SENDGRID_FROM").unwrap();
+    let email_cc = std::env::var("SENDGRID_CC").unwrap();
     let email_bcc = std::env::var("SENDGRID_BCC").unwrap();
     let code = std::env::var("SENDGRID_CODE").unwrap();
-    
 
     let email_to = vec![EmailAddress {
         email: email_to.into(),
+        name: None,
+    }];
+
+    let email_cc = vec![EmailAddress {
+        email: email_cc.into(),
         name: None,
     }];
 
@@ -41,6 +46,7 @@ async fn send_template(client: &SendGridRestClient, template_id: &str, email_to:
     .send_template(
         email_from.as_str(), 
         email_to, 
+        email_cc,
         email_bcc, 
         subject, 
         template_id, 
