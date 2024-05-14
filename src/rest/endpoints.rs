@@ -8,6 +8,7 @@ impl From<SendGridEndpoint> for String {
     fn from(item: SendGridEndpoint) -> Self {
         String::from(match item {
             SendGridEndpoint::MailSend => "/mail/send",
-            SendGridEndpoint::Templates => "/templates",        })
+            SendGridEndpoint::Templates => "/templates",      
+        })
     }
 }

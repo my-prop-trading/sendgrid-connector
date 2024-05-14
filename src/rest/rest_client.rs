@@ -47,7 +47,7 @@ impl SendGridRestClient {
         custom_headers
     }
     
-    pub async fn send_template(
+    pub async fn send_email_by_template(
         &self,
         email_from: &str,
         email_to: Vec<EmailAddress>,
@@ -77,7 +77,7 @@ impl SendGridRestClient {
         let value: Value = serde_json::from_str(&serialized)?;
 
         let resp: Option<SendGridEmailResponse> = self
-            .post_json(SendGridEndpoint::MailSend, Some(value), None)
+            .post_json(SendGridEndpoint::MailSend, Some(value), None, None)
             .await?;
 
         match resp {
@@ -86,16 +86,78 @@ impl SendGridRestClient {
         }        
     }
 
+
+    pub async fn create_template(
+        &self,
+        name: &str,
+    ) -> Result<CreateSendGridTemplateResponse, Error> {
+
+        let email = CreateSendGridTemplate {
+            name: name.to_string(),
+            generation: "dynamic".to_string(),
+        };
+
+        let serialized = serde_json::to_string(&email)?;
+        let value: Value = serde_json::from_str(&serialized)?;
+
+        let resp: Option<TransactionalTemplate> = self
+            .post_json(SendGridEndpoint::Templates, Some(value), None, None)
+            .await?;
+
+        match resp {
+            Some(resp) => Ok(CreateSendGridTemplateResponse { 
+                template_id: Some(resp.id),
+            }),
+            None => Ok(CreateSendGridTemplateResponse::default()),
+        }        
+    }
+
+    pub async fn update_template_with_html_body(
+        &self,
+        name: &str,
+        template_id: &str,
+        html_content: &str,
+        subject: &str,
+    ) -> Result<bool , Error> {
+
+        let request = SendGridTemplateVersionRequest {
+            template_id: template_id.to_string(),
+            active: Some(1),
+            name: name.to_string(),
+            html_content: Some(html_content.to_string()),
+            plain_content: Some("".to_string()),
+            generate_plain_content: Some(true),
+            subject: subject.to_string(),
+            editor: Some("code".to_string()),
+            test_data: None,
+        };
+
+        let serialized = serde_json::to_string(&request)?;
+        let value: Value = serde_json::from_str(&serialized)?;
+        println!("{:?}", value);
+        let resp: Option<TransactionalTemplateVersion> = self
+            .post_json(SendGridEndpoint::Templates, Some(value), None,
+             Some(format!("/{}/versions", template_id)))
+            .await?;
+
+        match resp {
+            Some(resp) => Ok(true),
+            None => Ok(false),
+        }        
+    }
+
     pub async fn post_json<T: DeserializeOwned>(
         &self,
         endpoint: SendGridEndpoint,
         data: Option<serde_json::Value>,
         query_params_string: Option<String>,
+        url_params_string: Option<String>,
     ) -> Result<Option<T>, Error> {
         let url_with_query: String = format!(
-            "{}{}{}",
+            "{}{}{}{}",
             self.host,
             String::from(endpoint),
+            url_params_string.clone().unwrap_or_default(),
             query_params_string.clone().unwrap_or_default()
         );
 
