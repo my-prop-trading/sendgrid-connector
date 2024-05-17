@@ -117,6 +117,7 @@ impl SendGridRestClient {
         name: &str,
         template_id: &str,
         html_content: &str,
+        plain_content: &str,
         subject: &str,
     ) -> Result<bool , Error> {
 
@@ -125,7 +126,7 @@ impl SendGridRestClient {
             active: Some(1),
             name: name.to_string(),
             html_content: Some(html_content.to_string()),
-            plain_content: Some("".to_string()),
+            plain_content: Some(plain_content.to_string()),
             generate_plain_content: Some(true),
             subject: subject.to_string(),
             editor: Some("code".to_string()),

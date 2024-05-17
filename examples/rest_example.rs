@@ -29,7 +29,7 @@ async fn create_registration_template(client: &SendGridRestClient) -> Option<Str
 
             if let Some(template_id) = create_result.template_id {
                 let subject = "Verify Your Email Address for {{company_name}}";
-                let content = r#"
+                let html_content = r#"
                 <html>
                 <head>
                 <title></title>
@@ -44,11 +44,18 @@ async fn create_registration_template(client: &SendGridRestClient) -> Option<Str
                 </html>
                 "#;
 
+                let plain_content = r#"
+                Confirm your email
+                Welcome to {{company_name}}. Please confirm your email address using the following activation code: {{code}}
+                If you did not try to register, then ignore this message.
+                "#;
+
                 let update_result = client
                     .update_template_with_html_body(
                         name,
                         template_id.as_str(),
-                        content,
+                        html_content,
+                        plain_content,
                         subject,
                         )
                         .await;
