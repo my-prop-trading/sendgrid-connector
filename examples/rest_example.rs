@@ -9,27 +9,25 @@ use serde_json::json;
 async fn main() {
     let app_token = std::env::var("SENDGRID_API_KEY").unwrap();
     let client = SendGridRestClient::new_with_config(app_token, SendGridConfig::test_env());
- 
+
     if let Some(id) = create_registration_template(&client).await {
-        send_template(&client, 
-            id.as_str(), //std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str(), 
+        send_template(
+            &client,
+            id.as_str(), //std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str(),
             std::env::var("SENDGRID_TO").unwrap().as_str(),
-            std::env::var("SENDGRID_TEMPLATE_SUBJECT").unwrap().as_str())
-            .await;
+            std::env::var("SENDGRID_TEMPLATE_SUBJECT").unwrap().as_str(),
+        )
+        .await;
     }
 }
 
 async fn create_registration_template(client: &SendGridRestClient) -> Option<String> {
     let name = "[en][test] Registration Confirmation";
-    if let Ok(create_result) = client.create_template(
-            name,
-        )
-        .await {   
-            println!("create_template result: {create_result:?}");     
+    if let Ok(create_result) = client.create_template(name).await {
+        println!("create_template result: {create_result:?}");
 
-            if let Some(template_id) = create_result.template_id {
-                let subject = "Verify Your Email Address for {{company_name}}";
-                let html_content = r#"
+        let subject = "Verify Your Email Address for {{company_name}}";
+        let html_content = r#"
                 <html>
                 <head>
                 <title></title>
@@ -44,35 +42,39 @@ async fn create_registration_template(client: &SendGridRestClient) -> Option<Str
                 </html>
                 "#;
 
-                let plain_content = r#"
+        let plain_content = r#"
                 Confirm your email
                 Welcome to {{company_name}}. Please confirm your email address using the following activation code: {{code}}
                 If you did not try to register, then ignore this message.
                 "#;
 
-                let update_result = client
-                    .update_template_with_html_body(
-                        name,
-                        template_id.as_str(),
-                        html_content,
-                        plain_content,
-                        subject,
-                        )
-                        .await;
-                println!("update_result result: {update_result:?}");            
+        let update_result = client
+            .update_template_with_html_body(
+                name,
+                create_result.template_id.as_str(),
+                html_content,
+                plain_content,
+                subject,
+            )
+            .await;
+        println!("update_result result: {update_result:?}");
 
-                return Some(template_id);
-            }
-        }
-        None
+        return Some(template_id);
+    }
+    None
 }
 
-async fn send_template(client: &SendGridRestClient, template_id: &str, email_to: &str, subject: &str) {
+async fn send_template(
+    client: &SendGridRestClient,
+    template_id: &str,
+    email_to: &str,
+    subject: &str,
+) {
     let email_from = std::env::var("SENDGRID_FROM").unwrap();
     let email_cc = std::env::var("SENDGRID_CC").unwrap();
     let email_bcc = std::env::var("SENDGRID_BCC").unwrap();
     let code = std::env::var("SENDGRID_CODE").unwrap();
-    let company_name: String = std::env::var("SENDGRID_COMPANY").unwrap(); 
+    let company_name: String = std::env::var("SENDGRID_COMPANY").unwrap();
 
     let email_to = vec![EmailAddress {
         email: email_to.into(),
@@ -92,20 +94,18 @@ async fn send_template(client: &SendGridRestClient, template_id: &str, email_to:
     let mut placeholders = HashMap::new();
     placeholders.insert("code".to_string(), code);
     placeholders.insert("company_name".to_string(), company_name);
-    
+
     let result = client
-    .send_email_by_template(
-        email_from.as_str(), 
-        email_to, 
-        email_cc,
-        email_bcc, 
-        subject, 
-        template_id, 
-        Some(placeholders)
+        .send_email_by_template(
+            email_from.as_str(),
+            email_to,
+            email_cc,
+            email_bcc,
+            subject,
+            template_id,
+            Some(placeholders),
         )
         .await;
 
     println!("send_email result: {result:?}");
 }
-
-

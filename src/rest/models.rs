@@ -52,7 +52,7 @@ pub struct CreateSendGridTemplate {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct CreateSendGridTemplateResponse {
-    pub template_id: Option<String>,
+    pub template_id: String,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

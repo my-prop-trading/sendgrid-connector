@@ -106,7 +106,7 @@ impl SendGridRestClient {
 
         match resp {
             Some(resp) => Ok(CreateSendGridTemplateResponse { 
-                template_id: Some(resp.id),
+                template_id: resp.id,
             }),
             None => Ok(CreateSendGridTemplateResponse::default()),
         }        
