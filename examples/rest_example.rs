@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sendgrid_connector::rest::config::SendGridConfig;
-use sendgrid_connector::rest::models::EmailAddress;
+use sendgrid_connector::rest::models::{EmailAddress, TransactionalTemplate};
 use sendgrid_connector::rest::rest_client::SendGridRestClient;
 use serde_json::json;
 
@@ -9,6 +9,10 @@ use serde_json::json;
 async fn main() {
     let app_token = std::env::var("SENDGRID_API_KEY").unwrap();
     let client = SendGridRestClient::new_with_config(app_token, SendGridConfig::test_env());
+    let template = get_template(
+        &client, 
+        std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str()
+    ).await;
 
     if let Some((id, version)) = create_registration_template(&client).await {
         println!("created: {} version: {}", id, version);
@@ -62,6 +66,21 @@ async fn create_registration_template(client: &SendGridRestClient) -> Option<(St
             println!("update_result result: {update_result:?}");
 
             return Some((create_result.template_id, update_result.unwrap().id.unwrap()));
+        }
+
+        Err(err) => {
+            println!("create_template failed: {err:?}");
+            None
+        }
+    }
+}
+
+async fn get_template(client: &SendGridRestClient, template_id: &str) -> Option<(TransactionalTemplate)> {
+    
+    match client.get_template(template_id).await {
+        Ok(result) => {
+            println!("get_template result: {result:?}");
+            return Some((result));
         }
 
         Err(err) => {

@@ -106,6 +106,19 @@ impl SendGridRestClient {
         })       
     }
 
+
+    pub async fn get_template(
+        &self,
+        template_id: &str,
+    ) -> Result<TransactionalTemplate, Error> {
+        let resp: TransactionalTemplate = self
+            .get_json(SendGridEndpoint::Templates, 
+                Some(format!("/{}", template_id)), None)
+            .await?;
+
+        Ok(resp)       
+    }
+
     pub async fn update_template(
         &self,
         name: &str,
@@ -199,5 +212,38 @@ impl SendGridRestClient {
                 bail!(format!("Received response code: {s:?} error: {error:?}"));
             }
         }
+    }
+
+
+
+    pub async fn get_json<T: DeserializeOwned>(
+        &self,
+        endpoint: SendGridEndpoint,
+        query_params_string: Option<String>,
+        url_params_string: Option<String>,
+    ) -> Result<T, Error> {
+        let url_with_query: String = format!(
+            "{}{}{}{}",
+            self.host,
+            String::from(endpoint),
+            url_params_string.clone().unwrap_or_default(),
+            query_params_string.clone().unwrap_or_default()
+        );
+
+        let headers = self.build_headers();
+        let client = &self.inner_client;
+        let response = client
+            .get(&url_with_query)
+            .headers(headers)
+            //.query(&query_params.clone())
+            //.json(&data.unwrap())
+            .send()
+            .await?;
+
+        // let response = reqwest::get(url).await?;
+        // let body = response.text().await?;
+    
+        self.handler(response, query_params_string.clone())
+            .await
     }
 }
