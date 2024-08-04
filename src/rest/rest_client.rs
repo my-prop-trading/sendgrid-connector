@@ -76,14 +76,11 @@ impl SendGridRestClient {
         let serialized = serde_json::to_string(&email)?;
         let value: Value = serde_json::from_str(&serialized)?;
 
-        let resp: Option<SendGridEmailResponse> = self
+        let resp: SendGridEmailResponse = self
             .post_json(SendGridEndpoint::MailSend, Some(value), None, None)
             .await?;
 
-        match resp {
-            Some(resp) => Ok(resp),
-            None => Ok(SendGridEmailResponse::default()),
-        }        
+        Ok(resp)      
     }
 
 
@@ -100,26 +97,23 @@ impl SendGridRestClient {
         let serialized = serde_json::to_string(&email)?;
         let value: Value = serde_json::from_str(&serialized)?;
 
-        let resp: Option<TransactionalTemplate> = self
+        let resp: TransactionalTemplate = self
             .post_json(SendGridEndpoint::Templates, Some(value), None, None)
             .await?;
 
-        match resp {
-            Some(resp) => Ok(CreateSendGridTemplateResponse { 
-                template_id: resp.id,
-            }),
-            None => Ok(CreateSendGridTemplateResponse::default()),
-        }        
+        Ok(CreateSendGridTemplateResponse { 
+            template_id: resp.id,
+        })       
     }
 
-    pub async fn update_template_with_html_body(
+    pub async fn update_template(
         &self,
         name: &str,
         template_id: &str,
         html_content: &str,
         plain_content: &str,
         subject: &str,
-    ) -> Result<bool , Error> {
+    ) -> Result<TransactionalTemplateVersion , Error> {
 
         let request = SendGridTemplateVersionRequest {
             template_id: template_id.to_string(),
@@ -136,15 +130,11 @@ impl SendGridRestClient {
         let serialized = serde_json::to_string(&request)?;
         let value: Value = serde_json::from_str(&serialized)?;
         println!("{:?}", value);
-        let resp: Option<TransactionalTemplateVersion> = self
+        let resp: TransactionalTemplateVersion = self
             .post_json(SendGridEndpoint::Templates, Some(value), None,
              Some(format!("/{}/versions", template_id)))
             .await?;
-
-        match resp {
-            Some(resp) => Ok(true),
-            None => Ok(false),
-        }        
+        Ok(resp)         
     }
 
     pub async fn post_json<T: DeserializeOwned>(
@@ -153,7 +143,7 @@ impl SendGridRestClient {
         data: Option<serde_json::Value>,
         query_params_string: Option<String>,
         url_params_string: Option<String>,
-    ) -> Result<Option<T>, Error> {
+    ) -> Result<T, Error> {
         let url_with_query: String = format!(
             "{}{}{}{}",
             self.host,
@@ -180,17 +170,12 @@ impl SendGridRestClient {
         &self,
         response: Response,
         request_json: Option<String>,
-    ) -> Result<Option<T>, Error> {
+    ) -> Result<T, Error> {
         match response.status() {
             reqwest::StatusCode::OK | reqwest::StatusCode::CREATED | reqwest::StatusCode::ACCEPTED  => {
                 let body = response.text().await?;
-                if body.trim().is_empty() {
-                    // Return None to represent an empty response
-                    Ok(None) 
-                } else {
-                    // Deserialize the response body into type T
-                    Ok(Some(serde_json::from_str::<T>(&body)?))
-                }
+                // Deserialize the response body into type T
+                Ok(serde_json::from_str::<T>(&body)?)
             },
             StatusCode::INTERNAL_SERVER_ERROR => {
                 bail!("Internal Server Error");
