@@ -65,7 +65,7 @@ async fn create_registration_template(client: &SendGridRestClient) -> Option<(St
                 .await;
             println!("update_result result: {update_result:?}");
 
-            return Some((create_result.template_id, update_result.unwrap().id.unwrap()));
+            return Some((create_result.template_id, update_result.unwrap().unwrap().id.unwrap()));
         }
 
         Err(err) => {
@@ -75,12 +75,12 @@ async fn create_registration_template(client: &SendGridRestClient) -> Option<(St
     }
 }
 
-async fn get_template(client: &SendGridRestClient, template_id: &str) -> Option<(TransactionalTemplate)> {
+async fn get_template(client: &SendGridRestClient, template_id: &str) -> Option<TransactionalTemplate> {
     
     match client.get_template(template_id).await {
         Ok(result) => {
             println!("get_template result: {result:?}");
-            return Some((result));
+            result
         }
 
         Err(err) => {
