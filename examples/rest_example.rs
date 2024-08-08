@@ -125,8 +125,8 @@ async fn send_template(
         .send_email_by_template(
             email_from.as_str(),
             email_to,
-            email_cc,
-            email_bcc,
+            Some(email_cc),
+            Some(email_bcc),
             subject,
             template_id,
             Some(placeholders),
