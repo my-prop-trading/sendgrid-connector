@@ -97,6 +97,7 @@ async fn send_template(
     subject: &str,
 ) {
     let email_from = std::env::var("SENDGRID_FROM").unwrap();
+    let email_from_name = std::env::var("SENDGRID_FROM_NAME").unwrap();
     let email_cc = std::env::var("SENDGRID_CC").unwrap();
     let email_bcc = std::env::var("SENDGRID_BCC").unwrap();
     let code = std::env::var("SENDGRID_CODE").unwrap();
@@ -123,7 +124,8 @@ async fn send_template(
 
     let result = client
         .send_email_by_template(
-            email_from.as_str(),
+            &email_from,
+            Some(&email_from_name),
             email_to,
             Some(email_cc),
             Some(email_bcc),

@@ -50,6 +50,7 @@ impl SendGridRestClient {
     pub async fn send_email_by_template(
         &self,
         email_from: &str,
+        email_from_name: Option<&str>,
         email_to: Vec<EmailAddress>,
         email_cc: Option<Vec<EmailAddress>>,
         email_bcc: Option<Vec<EmailAddress>>,
@@ -60,7 +61,7 @@ impl SendGridRestClient {
         let email = SendGridEmail {
             from: EmailAddress {
                 email: email_from.into(),
-                name: None,
+                name: email_from_name.map(|name| name.to_string()),
             },
             personalizations: vec![Personalization {
                 to: email_to,
