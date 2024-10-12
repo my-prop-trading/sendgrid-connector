@@ -15,6 +15,7 @@ pub struct Personalization {
     #[serde(rename = "dynamic_template_data", skip_serializing_if = "Option::is_none")]
     pub dynamic_template_data: Option<HashMap<String, String>>, 
     pub cc: Option<Vec<EmailAddress>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bcc: Option<Vec<EmailAddress>>,
 }
 
