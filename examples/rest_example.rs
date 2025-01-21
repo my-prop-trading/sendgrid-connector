@@ -9,21 +9,29 @@ use serde_json::json;
 async fn main() {
     let app_token = std::env::var("SENDGRID_API_KEY").unwrap();
     let client = SendGridRestClient::new_with_config(app_token, SendGridConfig::test_env());
-    let template = get_template(
-        &client, 
-        std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str()
-    ).await;
+    // let template = get_template(
+    //     &client, 
+    //     std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str()
+    // ).await;
+    
+    // if let Some((id, version)) = create_registration_template(&client).await {
+    //     println!("created: {} version: {}", id, version);
+    //     send_template(
+    //         &client,
+    //         id.as_str(), //std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str(),
+    //         std::env::var("SENDGRID_TO").unwrap().as_str(),
+    //         std::env::var("SENDGRID_TEMPLATE_SUBJECT").unwrap().as_str(),
+    //     )
+    //     .await;
+    // }
 
-    if let Some((id, version)) = create_registration_template(&client).await {
-        println!("created: {} version: {}", id, version);
-        send_template(
-            &client,
-            id.as_str(), //std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str(),
-            std::env::var("SENDGRID_TO").unwrap().as_str(),
-            std::env::var("SENDGRID_TEMPLATE_SUBJECT").unwrap().as_str(),
-        )
-        .await;
-    }
+    send_template(
+        &client,
+        "d-2ba0b8ca0608464a9867fffd207906c4", //std::env::var("SENDGRID_TEMPLATE_ID").unwrap().as_str(),
+        std::env::var("SENDGRID_TO").unwrap().as_str(),
+        std::env::var("SENDGRID_TEMPLATE_SUBJECT").unwrap().as_str(),
+    )
+    .await;
 }
 
 async fn create_registration_template(client: &SendGridRestClient) -> Option<(String, String)> {
@@ -117,6 +125,8 @@ async fn send_template(
         email: email_bcc.into(),
         name: None,
     }];
+
+    let email_bcc: Vec<EmailAddress> = Vec::new();
 
     let mut placeholders = HashMap::new();
     placeholders.insert("code".to_string(), code);

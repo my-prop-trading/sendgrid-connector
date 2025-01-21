@@ -20,8 +20,11 @@ pub struct SendGridRestClient {
 }
 
 impl SendGridRestClient {
-    pub fn new(app_token: String) -> Self {
-        Self::new_with_config(app_token, SendGridConfig::default())
+    pub fn new(app_token: String, rest_api_host: Option<String>) -> Self {
+
+        Self::new_with_config(
+            app_token, 
+            if let Some(rest_api_host) = rest_api_host { SendGridConfig {rest_api_host}} else { SendGridConfig::default() })
     }
 
     pub fn new_with_config(app_token: String, config: SendGridConfig) -> Self {
