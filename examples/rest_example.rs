@@ -126,8 +126,6 @@ async fn send_template(
         name: None,
     }];
 
-    let email_bcc: Vec<EmailAddress> = Vec::new();
-
     let mut placeholders = HashMap::new();
     placeholders.insert("code".to_string(), code);
     placeholders.insert("company_name".to_string(), company_name);

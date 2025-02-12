@@ -7,6 +7,10 @@ edition = "2021"
 
 [dependencies]
 
+fl-url = { tag = "0.6.1", git = "https://github.com/MyJetTools/fl-url.git" }
+reqwest = { version = "*", features = ["json"] }
+
+
 http = "1.0.0"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
@@ -18,7 +22,6 @@ futures = "*"
 futures-util = { version = "*", default-features = false }
 futures-core = { version = "*", default-features = false }
 futures-channel = "*"
-reqwest = { version = "*", features = ["json"] }
 url = "*"
 error-chain = { version = "0.12.4", default-features = false }
 hmac = "*"
