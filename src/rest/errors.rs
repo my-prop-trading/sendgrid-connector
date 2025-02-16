@@ -1,4 +1,5 @@
 use error_chain::error_chain;
+use flurl::FlUrlError;
 use serde::Deserialize;
 
 #[derive(Default, Debug, PartialEq, Deserialize)]
@@ -16,8 +17,8 @@ error_chain! {
     }
 
     foreign_links {
-        ReqError(reqwest::Error);
-        InvalidHeaderError(reqwest::header::InvalidHeaderValue);
+        // ReqError(FlUrlError::HttpError);
+        // InvalidHeaderError(reqwest::header::InvalidHeaderValue);
         IoError(std::io::Error);
         ParseFloatError(std::num::ParseFloatError);
         UrlParserError(url::ParseError);

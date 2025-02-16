@@ -4,9 +4,7 @@ use crate::rest::config::SendGridConfig;
 use crate::rest::endpoints::SendGridEndpoint;
 use crate::rest::errors::Error;
 use error_chain::bail;
-use reqwest::header::{self, HeaderMap, HeaderName, HeaderValue};
-use reqwest::Response;
-use reqwest::StatusCode;
+use flurl::*;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -15,8 +13,7 @@ use super::models::*;
 #[derive(Clone)]
 pub struct SendGridRestClient {
     app_token: String,
-    host: String,
-    inner_client: reqwest::Client,
+    host: String
 }
 
 impl SendGridRestClient {
@@ -30,24 +27,15 @@ impl SendGridRestClient {
     pub fn new_with_config(app_token: String, config: SendGridConfig) -> Self {
         Self {
             app_token,
-            host: config.rest_api_host,
-            inner_client: reqwest::Client::new(),
+            host: config.rest_api_host
         }
     }
 
-    fn build_headers(&self) -> HeaderMap {
-        let mut custom_headers = HeaderMap::new();
-        custom_headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
+    pub fn build_headers(&self, url: String) -> FlUrl {
+        let url = url.with_header("CONTENT_TYPE", "application/json");
+        let url = url.with_header("authorization", format!("Bearer {}", &self.app_token).as_str());
 
-        custom_headers.insert(
-            HeaderName::from_static("authorization"),
-            HeaderValue::from_str(format!("Bearer {}", &self.app_token).as_str()).unwrap(),
-        );
-
-        custom_headers
+        return url;
     }
 
     pub async fn send_email_by_template(
@@ -170,6 +158,7 @@ impl SendGridRestClient {
         query_params_string: Option<String>,
         url_params_string: Option<String>,
     ) -> Result<Option<T>, Error> {
+
         let url_with_query: String = format!(
             "{}{}{}{}",
             self.host,
@@ -178,62 +167,26 @@ impl SendGridRestClient {
             query_params_string.clone().unwrap_or_default()
         );
 
-        let headers = self.build_headers();
-        let client = &self.inner_client;
-        let response = client
-            .post(&url_with_query)
-            .headers(headers)
-            //.query(&query_params.clone())
-            .json(&data.unwrap())
-            .send()
-            .await?;
+        let body = match data {
+            Some(value) => {
+                // Serialize `serde_json::Value` to Vec<u8>
+                Some(serde_json::to_vec(&value)?)
+            }
+            None => None,
+        };
+        
+        let url = self.build_headers(url_with_query);
 
-        self.handler(response, query_params_string.clone()).await
-    }
+        let response = url
+            .post(body).await;
 
-    async fn handler<T: DeserializeOwned>(
-        &self,
-        response: Response,
-        request_json: Option<String>,
-    ) -> Result<Option<T>, Error> {
-        match response.status() {
-            reqwest::StatusCode::OK
-            | reqwest::StatusCode::CREATED
-            | reqwest::StatusCode::ACCEPTED => {
-                let body = response.text().await?;
-                if body.trim().is_empty() {
-                    // Return None to represent an empty response
-                    Ok(None)
-                } else {
-                    // Deserialize the response body into type T
-                    Ok(Some(serde_json::from_str::<T>(&body)?))
-                }
-            }
-            StatusCode::INTERNAL_SERVER_ERROR => {
-                bail!("Internal Server Error");
-            }
-            StatusCode::SERVICE_UNAVAILABLE => {
-                bail!("Service Unavailable");
-            }
-            StatusCode::UNAUTHORIZED => {
-                bail!("Unauthorized");
-            }
-            StatusCode::BAD_REQUEST => {
-                let error = response.text().await?;
-                bail!(format!(
-                    "Received bad request status. Request: {:?}. Response: {:?}",
-                    request_json, error
-                ));
-            }
-            s => {
-                let error = response.text().await?;
-
-                bail!(format!("Received response code: {s:?} error: {error:?}"));
-            }
+        match response {
+            Ok(result) => self.handler(result, query_params_string.clone()).await,
+            Err(_) => todo!(),
         }
     }
 
-    pub async fn get_json<T: DeserializeOwned>(
+pub async fn get_json<T: DeserializeOwned>(
         &self,
         endpoint: SendGridEndpoint,
         query_params_string: Option<String>,
@@ -247,19 +200,86 @@ impl SendGridRestClient {
             query_params_string.clone().unwrap_or_default()
         );
 
-        let headers = self.build_headers();
-        let client = &self.inner_client;
-        let response = client
-            .get(&url_with_query)
-            .headers(headers)
-            //.query(&query_params.clone())
-            //.json(&data.unwrap())
-            .send()
-            .await?;
+        let url = self.build_headers(url_with_query);
 
-        // let response = reqwest::get(url).await?;
-        // let body = response.text().await?;
+        let response = url
+            .get().await;
 
-        self.handler(response, query_params_string.clone()).await
+        match response {
+            Ok(result) => self.handler(result, query_params_string.clone()).await,
+            Err(_) => todo!(),
+        }
+    }
+
+    async fn handler<T: DeserializeOwned>(
+        &self,
+        response: FlUrlResponse,
+        request_json: Option<String>,
+    ) -> Result<Option<T>, Error> {
+        match response.get_status_code() {
+            200 | 201 | 202 => {
+                let body = response.receive_body().await;
+                match  body {
+                    Ok(result) => {
+                            if result.is_empty() {
+                                // Return None to represent an empty response
+                                Ok(None)
+                            } else {
+                                // Deserialize the response body into type T
+                                Ok(Some(serde_json::from_slice(&result)?))
+                            }
+                        }
+                    Err(_) => todo!(),
+                    }
+                }
+            400 => {
+                let body = response.receive_body().await;
+                match  body {
+                    Ok(result) => {
+                        Ok(Some(serde_json::from_slice(&result)?))
+                    }
+                    Err(error) => {
+                        return Err((format!("Received bad request status. Request: {:?}. Response: {:?}",request_json, error)).into());
+                        },
+                    }
+                }
+            401 => {
+                bail!("Unauthorized");
+            }
+
+            500 => {
+                bail!("Internal Server Error");
+            }
+           503 => {
+                bail!("Service Unavailable");
+            }
+
+            s => {
+                let body = response.receive_body().await;
+                match  body {
+                    Ok(result) => {
+                        Ok(Some(serde_json::from_slice(&result)?))
+                    }
+                    Err(error) => {
+                            bail!(format!("Received response code: {s:?} error: {error:?}"));
+                        },
+                    }
+            }
+        }
+    }
+
+    pub async fn handle_error<T: DeserializeOwned>(
+        response: FlUrlResponse,
+        message: String
+    ) -> Result<Option<T>, Error> {
+        let body = response.receive_body().await;
+            match  body {
+                Ok(result) => {
+                    Ok(Some(serde_json::from_slice(&result)?))
+                }
+                Err(_) => {
+                    return Err((message).into());
+                    },
+                }
     }
 }

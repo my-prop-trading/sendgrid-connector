@@ -7,8 +7,7 @@ edition = "2021"
 
 [dependencies]
 
-fl-url = { tag = "0.6.1", git = "https://github.com/MyJetTools/fl-url.git" }
-reqwest = { version = "*", features = ["json"] }
+flurl = { tag = "0.6.1", git = "https://github.com/MyJetTools/fl-url.git" }
 
 
 http = "1.0.0"
