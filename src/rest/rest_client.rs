@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::rest::config::SendGridConfig;
 use crate::rest::endpoints::SendGridEndpoint;
 use crate::rest::errors::Error;
-use error_chain::bail;
 use flurl::*;
+use ::http::StatusCode;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -159,13 +159,7 @@ impl SendGridRestClient {
         url_params_string: Option<String>,
     ) -> Result<Option<T>, Error> {
 
-        let url_with_query: String = format!(
-            "{}{}{}{}",
-            self.host,
-            String::from(endpoint),
-            url_params_string.clone().unwrap_or_default(),
-            query_params_string.clone().unwrap_or_default()
-        );
+        let url_with_query = self.get_url_with_headers(endpoint, query_params_string.clone(), url_params_string);
 
         let body = match data {
             Some(value) => {
@@ -174,15 +168,27 @@ impl SendGridRestClient {
             }
             None => None,
         };
+
+
+        let response = url_with_query.post(body).await;
         
-        let url = self.build_headers(url_with_query);
-
-        let response = url
-            .post(body).await;
-
         match response {
-            Ok(result) => self.handler(result, query_params_string.clone()).await,
-            Err(_) => todo!(),
+            Ok(result) => {
+                let code = StatusCode::from_u16(result.get_status_code()).unwrap();
+                let body = result.receive_body().await.ok();
+                println!("Result: {:?}", code);
+                match body {
+                    Some(body_data) if !body_data.is_empty() => {
+                        Ok(Some(serde_json::from_slice(&body_data)?))
+                    }
+                    _ => {
+                        Ok(None)
+                    }
+                }
+            }
+            Err(error) => {
+                return Err((format!("Received bad request status. Request: {:?}. Response: {:?}", query_params_string, error)).into());
+            }
         }
     }
 
@@ -192,6 +198,37 @@ pub async fn get_json<T: DeserializeOwned>(
         query_params_string: Option<String>,
         url_params_string: Option<String>,
     ) -> Result<Option<T>, Error> {
+        let url_with_query = self.get_url_with_headers(endpoint, query_params_string.clone(), url_params_string);
+
+        let response = url_with_query
+            .get().await;
+
+        match response {
+            Ok(result) => {
+                let code = StatusCode::from_u16(result.get_status_code()).unwrap();
+                let body = result.receive_body().await.ok();
+                println!("Result: {:?}", code);
+                match body {
+                    Some(body_data) if !body_data.is_empty() => {
+                        Ok(Some(serde_json::from_slice(&body_data)?))
+                    }
+                    _ => {
+                        Ok(None)
+                    }
+                }
+            }
+            Err(error) => {
+                return Err((format!("Received bad request status. Request: {:?}. Response: {:?}", query_params_string, error)).into());
+            }
+        }
+    }
+
+    pub fn get_url_with_headers(
+        &self,
+        endpoint: SendGridEndpoint,
+        query_params_string: Option<String>,
+        url_params_string: Option<String>,
+    ) -> FlUrl{
         let url_with_query: String = format!(
             "{}{}{}{}",
             self.host,
@@ -199,87 +236,6 @@ pub async fn get_json<T: DeserializeOwned>(
             url_params_string.clone().unwrap_or_default(),
             query_params_string.clone().unwrap_or_default()
         );
-
-        let url = self.build_headers(url_with_query);
-
-        let response = url
-            .get().await;
-
-        match response {
-            Ok(result) => self.handler(result, query_params_string.clone()).await,
-            Err(_) => todo!(),
-        }
-    }
-
-    async fn handler<T: DeserializeOwned>(
-        &self,
-        response: FlUrlResponse,
-        request_json: Option<String>,
-    ) -> Result<Option<T>, Error> {
-        match response.get_status_code() {
-            200 | 201 | 202 => {
-                let body = response.receive_body().await;
-                match  body {
-                    Ok(result) => {
-                            if result.is_empty() {
-                                // Return None to represent an empty response
-                                Ok(None)
-                            } else {
-                                // Deserialize the response body into type T
-                                Ok(Some(serde_json::from_slice(&result)?))
-                            }
-                        }
-                    Err(_) => todo!(),
-                    }
-                }
-            400 => {
-                let body = response.receive_body().await;
-                match  body {
-                    Ok(result) => {
-                        Ok(Some(serde_json::from_slice(&result)?))
-                    }
-                    Err(error) => {
-                        return Err((format!("Received bad request status. Request: {:?}. Response: {:?}",request_json, error)).into());
-                        },
-                    }
-                }
-            401 => {
-                bail!("Unauthorized");
-            }
-
-            500 => {
-                bail!("Internal Server Error");
-            }
-           503 => {
-                bail!("Service Unavailable");
-            }
-
-            s => {
-                let body = response.receive_body().await;
-                match  body {
-                    Ok(result) => {
-                        Ok(Some(serde_json::from_slice(&result)?))
-                    }
-                    Err(error) => {
-                            bail!(format!("Received response code: {s:?} error: {error:?}"));
-                        },
-                    }
-            }
-        }
-    }
-
-    pub async fn handle_error<T: DeserializeOwned>(
-        response: FlUrlResponse,
-        message: String
-    ) -> Result<Option<T>, Error> {
-        let body = response.receive_body().await;
-            match  body {
-                Ok(result) => {
-                    Ok(Some(serde_json::from_slice(&result)?))
-                }
-                Err(_) => {
-                    return Err((message).into());
-                    },
-                }
+        return self.build_headers(url_with_query); 
     }
 }
