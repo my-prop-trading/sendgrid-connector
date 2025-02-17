@@ -31,13 +31,6 @@ impl SendGridRestClient {
         }
     }
 
-    pub fn build_headers(&self, url: String) -> FlUrl {
-        let url = url.with_header("CONTENT_TYPE", "application/json");
-        let url = url.with_header("authorization", format!("Bearer {}", &self.app_token).as_str());
-
-        return url;
-    }
-
     pub async fn send_email_by_template(
         &self,
         email_from: &str,
@@ -236,6 +229,42 @@ pub async fn get_json<T: DeserializeOwned>(
             url_params_string.clone().unwrap_or_default(),
             query_params_string.clone().unwrap_or_default()
         );
-        return self.build_headers(url_with_query); 
+
+        let url_with_query = url_with_query.with_header("CONTENT_TYPE", "application/json");
+        let url_with_query = url_with_query.with_header("authorization", format!("Bearer {}", &self.app_token).as_str());
+        return url_with_query; 
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dotenv::dotenv;
+    use flurl::*;
+
+    use crate::rest::config::SendGridConfig;
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_click() {
+        dotenv().ok();
+        let api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+
+        match FlUrl::new(SendGridConfig::default().rest_api_host)
+            .do_not_reuse_connection()
+            .with_header("X-Api-Key", &api_key)
+            .get()
+            .await
+        {
+            Ok(result) => {
+                let body = result.receive_body().await.unwrap();
+                let parsed = String::from_utf8(body).unwrap();  
+
+                println!("Response: {:?}", parsed_result);
+            }
+            Err(err) => {
+                println!("Error: {}", err.to_string());
+            }
+        };
+        assert!(false)
     }
 }
