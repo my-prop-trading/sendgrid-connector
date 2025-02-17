@@ -28,5 +28,6 @@ sha1 = "*"
 sha2 = "*"
 hex = "*"
 serde_qs = "*"
+dotenv = "0.15"
 uuid = { version = "*", features = ["v4"] }
 chrono = "*"
