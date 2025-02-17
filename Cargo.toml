@@ -30,3 +30,4 @@ hex = "*"
 serde_qs = "*"
 uuid = { version = "*", features = ["v4"] }
 chrono = "*"
+dotenv = "*"
