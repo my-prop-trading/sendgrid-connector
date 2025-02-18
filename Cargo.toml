@@ -31,4 +31,3 @@ serde_qs = "*"
 dotenv = "0.15"
 uuid = { version = "*", features = ["v4"] }
 chrono = "*"
-dotenv = "*"

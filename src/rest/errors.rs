@@ -1,5 +1,4 @@
 use error_chain::error_chain;
-use flurl::FlUrlError;
 use serde::Deserialize;
 
 #[derive(Default, Debug, PartialEq, Deserialize)]
