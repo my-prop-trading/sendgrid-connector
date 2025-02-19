@@ -101,9 +101,9 @@ impl SendGridRestClient {
         };
 
         let serialized = serde_json::to_string(&email)
-            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
         let value: Value = serde_json::from_str(&serialized)
-        .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
 
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
@@ -122,24 +122,18 @@ impl SendGridRestClient {
 
         let code = StatusCode::from_u16(response.get_status_code())
             .map_err(|e| format!("Failed to read status result: {:?}", e))?;
-
-        if code == StatusCode::ACCEPTED {
-            let body = response.receive_body()
+        let body = response.receive_body()
             .await
             .map_err(|e| format!("Failed to receive body: {:?}", e))?;
 
+        if code == StatusCode::ACCEPTED {
             let parsed_response: CreateSendGridTemplateResponse =
                 serde_json::from_slice(&body)
-            .map_err(|e| format!("Failed to receive body: {:?}", e))?;  // Deserialize the body into CreateSendGridTemplateResponse
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
 
-            // Return the parsed response wrapped in Some()
             return Ok(parsed_response);
         }
 
-        let body = response
-            .receive_body()
-            .await
-            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
         let parsed = String::from_utf8(body)
             .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
 
@@ -199,7 +193,7 @@ impl SendGridRestClient {
         html_content: &str,
         plain_content: &str,
         subject: &str,
-    ) -> Result<Option<TransactionalTemplateVersion>, Error> {
+    ) -> Result<Option<TransactionalTemplateVersion>, String> {
         let request = SendGridTemplateVersionRequest {
             template_id: template_id.to_string(),
             active: Some(1),
@@ -212,28 +206,48 @@ impl SendGridRestClient {
             test_data: None,
         };
 
-        let serialized = serde_json::to_string(&request)?;
-        let value: Value = serde_json::from_str(&serialized)?;
-        println!("{:?}", value);
+        let serialized = serde_json::to_string(&request)
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
+        let value: Value = serde_json::from_str(&serialized)
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
 
-        let template_version = TransactionalTemplateVersion {
-        id: Some("123".to_string()),
-        template_id: Some("template-123".to_string()),
-        active: Some(1),
-        name: "Test Template".to_string(),
-        subject: "Test Subject".to_string(),
-        updated_at: Some("2025-02-18T12:00:00Z".to_string()),
-        generate_plain_content: Some(true),
-        html_content: Some("<html><body>Test</body></html>".to_string()),
-        plain_content: Some("Test plain content".to_string()),
-        editor: Some("html-editor".to_string()),
-        thumbnail_url: None,
-        warning: Some(Warning {
-            message: "This is a warning".to_string(),
-        }),
-        test_data: Some("test-data".to_string()),
-    };
-        return Ok(Some(template_version));
+        let client = FlUrl::new(self.host.clone())
+            .append_path_segment(String::from(SendGridEndpoint::Templates))
+            .with_header("Content-Type", "application/json")
+            .with_header("Authorization", format!("Bearer {}", self.app_token));
+
+        if std::env::var("DEBUG").is_ok() {
+            println!("{:?}", client.url.to_string());
+            println!("{:?}", &value);
+        }
+
+        let response = client
+            .post_json(&value)
+            .await
+            .map_err(|e| format!("HTTP POST failed: {:?}", e))?;
+
+        let code = StatusCode::from_u16(response.get_status_code())
+            .map_err(|e| format!("Failed to read status result: {:?}", e))?;
+        let body = response.receive_body()
+            .await
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+
+        if code == StatusCode::ACCEPTED {
+            let parsed_response: TransactionalTemplateVersion =
+                serde_json::from_slice(&body)
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+
+            return Ok(Some(parsed_response));
+        }
+
+        let parsed = String::from_utf8(body)
+            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+
+        let msg = format!(
+            "Failed to sent template '{}'. Response status: {:?}. Message: {}",
+            name, code, parsed
+        );
+        Err(msg)
     }
 }
 
