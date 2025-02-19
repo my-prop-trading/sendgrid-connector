@@ -30,7 +30,7 @@ impl SendGridRestClient {
         }
     }
 
-    pub async fn send_email_from_template(
+    pub async fn send_email_by_template(
         &self,
         email_from: EmailAddress,
         email_to: Vec<EmailAddress>,
@@ -126,7 +126,7 @@ impl SendGridRestClient {
             .await
             .map_err(|e| format!("Failed to receive body: {:?}", e))?;
 
-        if code == StatusCode::ACCEPTED {
+        if code == StatusCode::CREATED {
             let parsed_response: CreateSendGridTemplateResponse =
                 serde_json::from_slice(&body)
             .map_err(|e| format!("Failed to receive body: {:?}", e))?;
@@ -150,6 +150,7 @@ impl SendGridRestClient {
     ) -> Result<Option<TransactionalTemplate>, Error> {
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
+            .append_path_segment(format!("/{}", template_id))
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
 
@@ -213,6 +214,7 @@ impl SendGridRestClient {
 
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
+            .append_path_segment(format!("/{}", template_id))
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
 
@@ -298,7 +300,7 @@ mod test {
 
         let client = SendGridRestClient::new(sendgrid_api_key, None);
         match client
-            .send_email_from_template(
+            .send_email_by_template(
                 email_from,
                 email_to,
                 Some(email_cc),
@@ -330,6 +332,70 @@ mod test {
         let client = SendGridRestClient::new(sendgrid_api_key, None);
         match client
             .get_template(&template_id)
+            .await
+        {
+            Ok(msg) => {
+                println!("Sent {:?}", msg);
+                assert!(true)
+            }
+            Err(err) => {
+                println!("Failed: {:?}", err);
+                assert!(false)
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_mail_create_template() {
+        dotenv().ok();
+        let sendgrid_api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+        let client = SendGridRestClient::new(sendgrid_api_key, None);
+        match client
+            .create_template("[en][test] Registration Confirmation")
+            .await
+        {
+            Ok(msg) => {
+                println!("Sent {:?}", msg);
+                assert!(true)
+            }
+            Err(err) => {
+                println!("Failed: {:?}", err);
+                assert!(false)
+            }
+        }
+    }
+
+    
+    #[tokio::test]
+    #[ignore]
+    async fn test_mail_update_template() {
+        dotenv().ok();
+        let sendgrid_api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+        let company_name = std::env::var("SENDGRID_COMPANY").unwrap();
+        let template_id = std::env::var("SENDGRID_TEMPLATE_ID").unwrap();
+        let client = SendGridRestClient::new(sendgrid_api_key, None);
+        let subject = format!("Verify Your Email Address for {}", company_name);
+        let html_content = r#"
+                <html>
+                <head>
+                <title></title>
+                </head>
+                <body>
+                <div data-role="module-unsubscribe" class="module">
+                </div>
+                </body>
+                </html>
+                "#;
+
+        let plain_content = r#"
+                Confirm your email
+                Welcome to {{company_name}}. Please confirm your email address using the following activation code: {{code}}
+                If you did not try to register, then ignore this message.
+                    "#;
+
+        match client
+            .update_template("[en][test] Registration Confirmation", &template_id, &html_content, &plain_content, &subject)
             .await
         {
             Ok(msg) => {
