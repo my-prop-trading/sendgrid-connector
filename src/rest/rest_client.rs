@@ -48,7 +48,6 @@ impl SendGridRestClient {
                 dynamic_template_data: placeholders,
             }],
             template_id: Some(template_id.to_string()),
-            subject: String::new()
         };
 
         let payload = serde_json::to_value(&sg_email)
