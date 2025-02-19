@@ -3,11 +3,8 @@ use std::collections::HashMap;
 use crate::rest::config::SendGridConfig;
 use crate::rest::endpoints::SendGridEndpoint;
 use crate::rest::errors::Error;
-use error_chain::bail;
-use reqwest::header::{self, HeaderMap, HeaderName, HeaderValue};
-use reqwest::Response;
-use reqwest::StatusCode;
-use serde::de::DeserializeOwned;
+use flurl::*;
+use ::http::StatusCode;
 use serde_json::Value;
 
 use super::models::*;
@@ -15,8 +12,7 @@ use super::models::*;
 #[derive(Clone)]
 pub struct SendGridRestClient {
     app_token: String,
-    host: String,
-    inner_client: reqwest::Client,
+    host: String
 }
 
 impl SendGridRestClient {
@@ -30,99 +26,165 @@ impl SendGridRestClient {
     pub fn new_with_config(app_token: String, config: SendGridConfig) -> Self {
         Self {
             app_token,
-            host: config.rest_api_host,
-            inner_client: reqwest::Client::new(),
+            host: config.rest_api_host
         }
-    }
-
-    fn build_headers(&self) -> HeaderMap {
-        let mut custom_headers = HeaderMap::new();
-        custom_headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
-
-        custom_headers.insert(
-            HeaderName::from_static("authorization"),
-            HeaderValue::from_str(format!("Bearer {}", &self.app_token).as_str()).unwrap(),
-        );
-
-        custom_headers
     }
 
     pub async fn send_email_by_template(
         &self,
-        email_from: &str,
-        email_from_name: Option<&str>,
+        email_from: EmailAddress,
         email_to: Vec<EmailAddress>,
         email_cc: Option<Vec<EmailAddress>>,
         email_bcc: Option<Vec<EmailAddress>>,
-        subject: &str,
         template_id: &str,
         placeholders: Option<HashMap<String, String>>,
-    ) -> Result<SendGridEmailResponse, Error> {
-        let email = SendGridEmail {
-            from: EmailAddress {
-                email: email_from.into(),
-                name: email_from_name.map(|name| name.to_string()),
-            },
+    ) -> Result<String, String> {
+        let sg_email = SendGridEmail {
+            from: email_from.into(),
             personalizations: vec![Personalization {
-                to: email_to,
+                to: email_to.into_iter().map(|item| item.into()).collect(),
                 cc: email_cc,
                 bcc: email_bcc,
                 dynamic_template_data: placeholders,
             }],
-            subject: subject.into(),
             template_id: Some(template_id.to_string()),
+            subject: String::new()
         };
 
-        let serialized = serde_json::to_string(&email)?;
-        let value: Value = serde_json::from_str(&serialized)?;
+        let payload = serde_json::to_value(&sg_email)
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
 
-        let resp: Option<SendGridEmailResponse> = self
-            .post_json(SendGridEndpoint::MailSend, Some(value), None, None)
-            .await?;
+        let client = FlUrl::new(self.host.clone())
+            .append_path_segment(String::from(SendGridEndpoint::MailSend))
+            .with_header("Content-Type", "application/json")
+            .with_header("Authorization", format!("Bearer {}", self.app_token));
 
-        match resp {
-            Some(resp) => Ok(resp),
-            None => Ok(SendGridEmailResponse::default()),
+        if std::env::var("DEBUG").is_ok() {
+            println!("{:?}", client.url.to_string());
+            println!("{:?}", &payload);
         }
+
+        let response = client
+            .post_json(&payload)
+            .await
+            .map_err(|e| format!("HTTP POST failed: {:?}", e))?;
+
+        let code = StatusCode::from_u16(response.get_status_code())
+            .map_err(|e| format!("Failed to read status result: {:?}", e))?;
+
+        if code == StatusCode::ACCEPTED {
+            let msg = format!("Successfully sent template: '{}'", template_id);
+            return Ok(msg);
+        }
+
+        let body = response
+            .receive_body()
+            .await
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+        let parsed = String::from_utf8(body)
+            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+
+        let msg = format!(
+            "Failed to sent template '{}'. Response status: {:?}. Message: {}",
+            template_id, code, parsed
+        );
+        Err(msg)
     }
 
     pub async fn create_template(
         &self,
         name: &str,
-    ) -> Result<CreateSendGridTemplateResponse, Error> {
+    ) -> Result<CreateSendGridTemplateResponse, String> {
         let email = CreateSendGridTemplate {
             name: name.to_string(),
             generation: "dynamic".to_string(),
         };
 
-        let serialized = serde_json::to_string(&email)?;
-        let value: Value = serde_json::from_str(&serialized)?;
+        let serialized = serde_json::to_string(&email)
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
+        let value: Value = serde_json::from_str(&serialized)
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
 
-        let resp: Option<TransactionalTemplate> = self
-            .post_json(SendGridEndpoint::Templates, Some(value), None, None)
-            .await?;
+        let client = FlUrl::new(self.host.clone())
+            .append_path_segment(String::from(SendGridEndpoint::Templates))
+            .with_header("Content-Type", "application/json")
+            .with_header("Authorization", format!("Bearer {}", self.app_token));
 
-        match resp {
-            Some(resp) => Ok(CreateSendGridTemplateResponse { 
-                template_id: resp.id,
-            }),
-            None => Ok(CreateSendGridTemplateResponse::default()),
-        } 
+        if std::env::var("DEBUG").is_ok() {
+            println!("{:?}", client.url.to_string());
+            println!("{:?}", &value);
+        }
+
+        let response = client
+            .post_json(&value)
+            .await
+            .map_err(|e| format!("HTTP POST failed: {:?}", e))?;
+
+        let code = StatusCode::from_u16(response.get_status_code())
+            .map_err(|e| format!("Failed to read status result: {:?}", e))?;
+        let body = response.receive_body()
+            .await
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+
+        if code == StatusCode::CREATED {
+            let parsed_response: CreateSendGridTemplateResponse =
+                serde_json::from_slice(&body)
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+
+            return Ok(parsed_response);
+        }
+
+        let parsed = String::from_utf8(body)
+            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+
+        let msg = format!(
+            "Failed to sent template '{}'. Response status: {:?}. Message: {}",
+            name, code, parsed
+        );
+        Err(msg)
     }
+ 
+    pub async fn get_template(
+        &self,
+        template_id: &str
+    ) -> Result<Option<TransactionalTemplate>, String> {
+        let client = FlUrl::new(self.host.clone())
+            .append_path_segment(String::from(SendGridEndpoint::Templates))
+            .append_path_segment(format!("/{}", template_id))
+            .with_header("Content-Type", "application/json")
+            .with_header("Authorization", format!("Bearer {}", self.app_token));
 
-    pub async fn get_template(&self, template_id: &str) -> Result<Option<TransactionalTemplate>, Error> {
-        let resp: Option<TransactionalTemplate> = self
-            .get_json(
-                SendGridEndpoint::Templates,
-                Some(format!("/{}", template_id)),
-                None,
-            )
-            .await?;
+        if std::env::var("DEBUG").is_ok() {
+            println!("{:?}", client.url.to_string());
+            println!("{:?}", &template_id);
+        }
 
-        Ok(resp)
+        let response = client
+            .get()
+            .await
+            .map_err(|e| format!("HTTP GET failed: {:?}", e))?;
+
+        let code: StatusCode = StatusCode::from_u16(response.get_status_code())
+            .map_err(|e| format!("Failed to read status result: {:?}", e))?;
+
+        let body = response
+            .receive_body()
+            .await
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+        if code == StatusCode::OK {
+            let template: TransactionalTemplate = serde_json::from_slice(&body)
+            .map_err(|e| format!("Failed to deserialize body: {:?}", e))?;
+            return Ok(Some(template));
+        }
+
+        let parsed = String::from_utf8(body)
+            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+
+        let msg = format!(
+            "Failed to sent template '{}'. Response status: {:?}. Message: {}",
+            template_id, code, parsed
+        );
+        Err(msg)
     }
 
     pub async fn update_template(
@@ -132,7 +194,7 @@ impl SendGridRestClient {
         html_content: &str,
         plain_content: &str,
         subject: &str,
-    ) -> Result<Option<TransactionalTemplateVersion>, Error> {
+    ) -> Result<Option<TransactionalTemplateVersion>, String> {
         let request = SendGridTemplateVersionRequest {
             template_id: template_id.to_string(),
             active: Some(1),
@@ -145,121 +207,205 @@ impl SendGridRestClient {
             test_data: None,
         };
 
-        let serialized = serde_json::to_string(&request)?;
-        let value: Value = serde_json::from_str(&serialized)?;
-        println!("{:?}", value);
-        let resp: Option<TransactionalTemplateVersion> = self
-            .post_json(
-                SendGridEndpoint::Templates,
-                Some(value),
-                None,
-                Some(format!("/{}/versions", template_id)),
+        let serialized = serde_json::to_string(&request)
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
+        let value: Value = serde_json::from_str(&serialized)
+            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
+
+        let client = FlUrl::new(self.host.clone())
+            .append_path_segment(String::from(SendGridEndpoint::Templates))
+            .append_path_segment(format!("/{}", template_id))
+            .with_header("Content-Type", "application/json")
+            .with_header("Authorization", format!("Bearer {}", self.app_token));
+
+        if std::env::var("DEBUG").is_ok() {
+            println!("{:?}", client.url.to_string());
+            println!("{:?}", &value);
+        }
+
+        let response = client
+            .post_json(&value)
+            .await
+            .map_err(|e| format!("HTTP POST failed: {:?}", e))?;
+
+        let code = StatusCode::from_u16(response.get_status_code())
+            .map_err(|e| format!("Failed to read status result: {:?}", e))?;
+        let body = response.receive_body()
+            .await
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+
+        if code == StatusCode::ACCEPTED {
+            let parsed_response: TransactionalTemplateVersion =
+                serde_json::from_slice(&body)
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+
+            return Ok(Some(parsed_response));
+        }
+
+        let parsed = String::from_utf8(body)
+            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+
+        let msg = format!(
+            "Failed to sent template '{}'. Response status: {:?}. Message: {}",
+            name, code, parsed
+        );
+        Err(msg)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+    use dotenv::dotenv;
+
+    use crate::rest::{models::EmailAddress, rest_client::SendGridRestClient};
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_mail_send_by_template_id() {
+        dotenv().ok();
+        let sendgrid_api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+        let email_to = std::env::var("SENDGRID_TO").unwrap();
+        let email_from = std::env::var("SENDGRID_FROM").unwrap();
+        let email_from_name = std::env::var("SENDGRID_FROM_NAME").unwrap();
+        let email_cc = std::env::var("SENDGRID_CC").unwrap();
+        let email_bcc = std::env::var("SENDGRID_BCC").unwrap();
+        let code = std::env::var("SENDGRID_CODE").unwrap();
+        let company_name = std::env::var("SENDGRID_COMPANY").unwrap();
+        let template_id = std::env::var("SENDGRID_TEMPLATE_ID").unwrap();
+
+        let email_from = EmailAddress {
+            email: email_from.into(),
+            name: Some(email_from_name),
+        };
+
+        let email_to = vec![EmailAddress {
+            email: email_to.into(),
+            name: None,
+        }];
+
+        let email_cc = vec![EmailAddress {
+            email: email_cc.into(),
+            name: None,
+        }];
+
+        let email_bcc = vec![EmailAddress {
+            email: email_bcc.into(),
+            name: None,
+        }];
+
+        let mut placeholders = HashMap::new();
+        placeholders.insert("code".to_string(), code);
+        placeholders.insert("company_name".to_string(), company_name);
+
+        let client = SendGridRestClient::new(sendgrid_api_key, None);
+        match client
+            .send_email_by_template(
+                email_from,
+                email_to,
+                Some(email_cc),
+                Some(email_bcc),
+                &template_id,
+                Some(placeholders),
             )
-            .await?;
-
-        match resp {
-            Some(resp) => Ok(Some(resp)),
-            None => Ok(None),
-        }
-    }
-
-    pub async fn post_json<T: DeserializeOwned>(
-        &self,
-        endpoint: SendGridEndpoint,
-        data: Option<serde_json::Value>,
-        query_params_string: Option<String>,
-        url_params_string: Option<String>,
-    ) -> Result<Option<T>, Error> {
-        let url_with_query: String = format!(
-            "{}{}{}{}",
-            self.host,
-            String::from(endpoint),
-            url_params_string.clone().unwrap_or_default(),
-            query_params_string.clone().unwrap_or_default()
-        );
-
-        let headers = self.build_headers();
-        let client = &self.inner_client;
-        let response = client
-            .post(&url_with_query)
-            .headers(headers)
-            //.query(&query_params.clone())
-            .json(&data.unwrap())
-            .send()
-            .await?;
-
-        self.handler(response, query_params_string.clone()).await
-    }
-
-    async fn handler<T: DeserializeOwned>(
-        &self,
-        response: Response,
-        request_json: Option<String>,
-    ) -> Result<Option<T>, Error> {
-        match response.status() {
-            reqwest::StatusCode::OK
-            | reqwest::StatusCode::CREATED
-            | reqwest::StatusCode::ACCEPTED => {
-                let body = response.text().await?;
-                if body.trim().is_empty() {
-                    // Return None to represent an empty response
-                    Ok(None)
-                } else {
-                    // Deserialize the response body into type T
-                    Ok(Some(serde_json::from_str::<T>(&body)?))
-                }
+            .await
+        {
+            Ok(msg) => {
+                println!("Sent {:?}", msg);
+                assert!(true)
             }
-            StatusCode::INTERNAL_SERVER_ERROR => {
-                bail!("Internal Server Error");
-            }
-            StatusCode::SERVICE_UNAVAILABLE => {
-                bail!("Service Unavailable");
-            }
-            StatusCode::UNAUTHORIZED => {
-                bail!("Unauthorized");
-            }
-            StatusCode::BAD_REQUEST => {
-                let error = response.text().await?;
-                bail!(format!(
-                    "Received bad request status. Request: {:?}. Response: {:?}",
-                    request_json, error
-                ));
-            }
-            s => {
-                let error = response.text().await?;
-
-                bail!(format!("Received response code: {s:?} error: {error:?}"));
+            Err(err) => {
+                println!("Failed: {:?}", err);
+                assert!(false)
             }
         }
     }
 
-    pub async fn get_json<T: DeserializeOwned>(
-        &self,
-        endpoint: SendGridEndpoint,
-        query_params_string: Option<String>,
-        url_params_string: Option<String>,
-    ) -> Result<Option<T>, Error> {
-        let url_with_query: String = format!(
-            "{}{}{}{}",
-            self.host,
-            String::from(endpoint),
-            url_params_string.clone().unwrap_or_default(),
-            query_params_string.clone().unwrap_or_default()
-        );
+    
+    #[tokio::test]
+    #[ignore]
+    async fn test_mail_get_template() {
+        dotenv().ok();
+        let sendgrid_api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+        let template_id = std::env::var("SENDGRID_TEMPLATE_ID").unwrap();
 
-        let headers = self.build_headers();
-        let client = &self.inner_client;
-        let response = client
-            .get(&url_with_query)
-            .headers(headers)
-            //.query(&query_params.clone())
-            //.json(&data.unwrap())
-            .send()
-            .await?;
+        let client = SendGridRestClient::new(sendgrid_api_key, None);
+        match client
+            .get_template(&template_id)
+            .await
+        {
+            Ok(msg) => {
+                println!("Sent {:?}", msg);
+                assert!(true)
+            }
+            Err(err) => {
+                println!("Failed: {:?}", err);
+                assert!(false)
+            }
+        }
+    }
 
-        // let response = reqwest::get(url).await?;
-        // let body = response.text().await?;
+    #[tokio::test]
+    #[ignore]
+    async fn test_mail_create_template() {
+        dotenv().ok();
+        let sendgrid_api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+        let client = SendGridRestClient::new(sendgrid_api_key, None);
+        match client
+            .create_template("[en][test] Registration Confirmation")
+            .await
+        {
+            Ok(msg) => {
+                println!("Sent {:?}", msg);
+                assert!(true)
+            }
+            Err(err) => {
+                println!("Failed: {:?}", err);
+                assert!(false)
+            }
+        }
+    }
 
-        self.handler(response, query_params_string.clone()).await
+    
+    #[tokio::test]
+    #[ignore]
+    async fn test_mail_update_template() {
+        dotenv().ok();
+        let sendgrid_api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+        let company_name = std::env::var("SENDGRID_COMPANY").unwrap();
+        let template_id = std::env::var("SENDGRID_TEMPLATE_ID").unwrap();
+        let client = SendGridRestClient::new(sendgrid_api_key, None);
+        let subject = format!("Verify Your Email Address for {}", company_name);
+        let html_content = r#"
+                <html>
+                <head>
+                <title></title>
+                </head>
+                <body>
+                <div data-role="module-unsubscribe" class="module">
+                </div>
+                </body>
+                </html>
+                "#;
+
+        let plain_content = r#"
+                Confirm your email
+                Welcome to {{company_name}}. Please confirm your email address using the following activation code: {{code}}
+                If you did not try to register, then ignore this message.
+                    "#;
+
+        match client
+            .update_template("[en][test] Registration Confirmation", &template_id, &html_content, &plain_content, &subject)
+            .await
+        {
+            Ok(msg) => {
+                println!("Sent {:?}", msg);
+                assert!(true)
+            }
+            Err(err) => {
+                println!("Failed: {:?}", err);
+                assert!(false)
+            }
+        }
     }
 }

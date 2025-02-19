@@ -16,8 +16,6 @@ error_chain! {
     }
 
     foreign_links {
-        ReqError(reqwest::Error);
-        InvalidHeaderError(reqwest::header::InvalidHeaderValue);
         IoError(std::io::Error);
         ParseFloatError(std::num::ParseFloatError);
         UrlParserError(url::ParseError);
