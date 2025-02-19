@@ -147,7 +147,7 @@ impl SendGridRestClient {
     pub async fn get_template(
         &self,
         template_id: &str
-    ) -> Result<Option<TransactionalTemplate>, Error> {
+    ) -> Result<Option<TransactionalTemplate>, String> {
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .append_path_segment(format!("/{}", template_id))
@@ -184,7 +184,7 @@ impl SendGridRestClient {
             "Failed to sent template '{}'. Response status: {:?}. Message: {}",
             template_id, code, parsed
         );
-        Err(msg.into())
+        Err(msg)
     }
 
     pub async fn update_template(
