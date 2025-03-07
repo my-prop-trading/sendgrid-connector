@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EmailAddress {
     pub email: String,
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Personalization {
     pub to: Vec<EmailAddress>,
     #[serde(rename = "dynamic_template_data", skip_serializing_if = "Option::is_none")]
@@ -19,14 +19,14 @@ pub struct Personalization {
     pub bcc: Option<Vec<EmailAddress>>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Content {
     #[serde(rename = "type")]
     pub content_type: String,
     pub value: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SendGridEmail {
     #[serde(rename = "from")]
     pub from: EmailAddress,
@@ -41,7 +41,7 @@ pub struct SendGridEmailResponse {
 
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Serialize)]
 pub struct CreateSendGridTemplate {
     #[serde(rename = "name")]
     pub name: String,
