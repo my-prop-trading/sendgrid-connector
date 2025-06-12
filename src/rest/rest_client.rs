@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::rest::config::SendGridConfig;
 use crate::rest::endpoints::SendGridEndpoint;
-use crate::rest::errors::Error;
 use flurl::*;
 use ::http::StatusCode;
 use serde_json::Value;
