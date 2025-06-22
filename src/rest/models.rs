@@ -79,8 +79,8 @@ pub struct TransactionalTemplateVersion {
     pub active: Option<i32>,
     #[serde(rename = "name")]
     pub name: String,
-    #[serde(rename = "subject")]
-    pub subject: String,
+    #[serde(rename = "subject", skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
     #[serde(rename = "updated_at", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
     #[serde(rename = "generate_plain_content", skip_serializing_if = "Option::is_none")]
