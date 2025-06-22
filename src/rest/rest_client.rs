@@ -123,17 +123,17 @@ impl SendGridRestClient {
         let body = response.receive_body()
             .await
             .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+        let parsed = String::from_utf8(body)
+            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
 
         if code == StatusCode::CREATED {
+            println!("{parsed}");
             let parsed_response: CreateSendGridTemplateResponse =
-                serde_json::from_slice(&body)
+                serde_json::from_str(&parsed)
             .map_err(|e| format!("Failed to receive body: {:?}", e))?;
 
             return Ok(parsed_response);
         }
-
-        let parsed = String::from_utf8(body)
-            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
 
         let msg = format!(
             "Failed to sent template '{}'. Response status: {:?}. Message: {}",

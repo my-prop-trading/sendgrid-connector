@@ -51,6 +51,7 @@ pub struct CreateSendGridTemplate {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct CreateSendGridTemplateResponse {
+    #[serde(rename = "id")]
     pub template_id: String,
 }
 
