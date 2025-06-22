@@ -40,7 +40,7 @@ impl SendGridRestClient {
         template_id: &str,
         placeholders: Option<HashMap<String, String>>,
     ) -> Result<String, String> {
-        let request = SendGridEmail {
+        let payload = SendGridEmail {
             from: email_from.into(),
             personalizations: vec![Personalization {
                 to: email_to.into_iter().map(|item| item.into()).collect(),
@@ -50,9 +50,6 @@ impl SendGridRestClient {
             }],
             template_id: Some(template_id.to_string()),
         };
-
-        let payload = serde_json::to_value(&request)
-            .map_err(|e| format!("Failed to serialize email data into JSON bytes: {}", e))?;
 
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::MailSend))
@@ -99,13 +96,10 @@ impl SendGridRestClient {
         &self,
         name: &str,
     ) -> Result<CreateSendGridTemplateResponse, String> {
-        let request = CreateSendGridTemplate {
+        let payload = CreateSendGridTemplate {
             name: name.to_string(),
             generation: "dynamic".to_string(),
         };
-
-        let payload = serde_json::to_value(&request)
-            .map_err(|e| format!("Failed to serialize data into JSON bytes: {}", e))?;
 
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
@@ -201,7 +195,7 @@ impl SendGridRestClient {
         plain_content: &str,
         subject: &str,
     ) -> Result<Option<TransactionalTemplateVersion>, String> {
-        let request = SendGridTemplateVersionRequest {
+        let payload = SendGridTemplateVersionRequest {
             template_id: template_id.to_string(),
             active: Some(1),
             name: name.to_string(),
@@ -212,9 +206,6 @@ impl SendGridRestClient {
             editor: Some("code".to_string()),
             test_data: None,
         };
-
-        let payload = serde_json::to_value(&request)
-            .map_err(|e| format!("Failed to serialize data into JSON bytes: {}", e))?;
 
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
