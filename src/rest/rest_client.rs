@@ -56,11 +56,6 @@ impl SendGridRestClient {
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
 
-        if std::env::var("DEBUG").is_ok() {
-            println!("{:?}", client.url.to_string());
-            println!("{:?}", &payload);
-        }
-
         let response = client
             .post_json(&payload)
             .await
@@ -106,11 +101,6 @@ impl SendGridRestClient {
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
 
-        if std::env::var("DEBUG").is_ok() {
-            println!("{:?}", client.url.to_string());
-            println!("{payload:#?}");
-        }
-
         let response = client
             .post_json(&payload)
             .await
@@ -148,11 +138,6 @@ impl SendGridRestClient {
             .append_path_segment(format!("/{}", template_id))
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
-
-        if std::env::var("DEBUG").is_ok() {
-            println!("{:?}", client.url.to_string());
-            println!("{:?}", &template_id);
-        }
 
         let response = client
             .get()
@@ -212,11 +197,6 @@ impl SendGridRestClient {
             .append_path_segment(format!("/{}", template_id))
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
-
-        if std::env::var("DEBUG").is_ok() {
-            println!("{:?}", client.url.to_string());
-            println!("{payload:#?}");
-        }
 
         let response = client
             .post_json(&payload)
@@ -284,7 +264,7 @@ mod test {
         }];
 
         let email_cc = match email_cc {
-            Some(email_cc) => 
+            Some(email_cc) =>
                 Some(vec![EmailAddress {
                     email: email_cc.into(),
                     name: None,
