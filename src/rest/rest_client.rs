@@ -51,7 +51,13 @@ impl SendGridRestClient {
             template_id: Some(template_id.to_string()),
         };
 
+        // No keep-alive: this connector is called rarely (manual template ops, event-driven
+        // sends), so pooling buys nothing. A pooled connection that the server closed on idle
+        // makes my-http-client replay the request, which for a non-idempotent POST creates a
+        // duplicate (PROP25-2345: one create_template landed two templates). Connection: close
+        // means every request uses a fresh socket, so there is no stale-reuse replay.
         let client = FlUrl::new(self.host.clone())
+            .do_not_reuse_connection()
             .append_path_segment(String::from(SendGridEndpoint::MailSend))
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
@@ -96,7 +102,9 @@ impl SendGridRestClient {
             generation: "dynamic".to_string(),
         };
 
+        // No keep-alive — avoids stale-reuse replay (see send_email_by_template; PROP25-2345).
         let client = FlUrl::new(self.host.clone())
+            .do_not_reuse_connection()
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
@@ -133,7 +141,9 @@ impl SendGridRestClient {
         &self,
         template_id: &str,
     ) -> Result<Option<TransactionalTemplate>, String> {
+        // No keep-alive — avoids stale-reuse replay (see send_email_by_template; PROP25-2345).
         let client = FlUrl::new(self.host.clone())
+            .do_not_reuse_connection()
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .append_path_segment(format!("/{}", template_id))
             .with_header("Content-Type", "application/json")
@@ -192,7 +202,9 @@ impl SendGridRestClient {
             test_data: None,
         };
 
+        // No keep-alive — avoids stale-reuse replay (see send_email_by_template; PROP25-2345).
         let client = FlUrl::new(self.host.clone())
+            .do_not_reuse_connection()
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .append_path_segment(format!("/{}", template_id))
             .with_header("Content-Type", "application/json")
