@@ -192,9 +192,13 @@ impl SendGridRestClient {
             test_data: None,
         };
 
+        // POST to /v3/templates/{id}/versions to add a version (content) to the template.
+        // Without the /versions segment SendGrid treats POST /v3/templates/{id} as a create
+        // and makes a brand-new duplicate template instead of updating this one (PROP25-2345).
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .append_path_segment(format!("/{}", template_id))
+            .append_path_segment("/versions")
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
 
