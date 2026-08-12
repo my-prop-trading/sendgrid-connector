@@ -51,6 +51,7 @@ impl SendGridRestClient {
             template_id: Some(template_id.to_string()),
         };
 
+        println!("[sendgrid-connector] POST {}/mail/send", self.host);
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::MailSend))
             .with_header("Content-Type", "application/json")
@@ -96,6 +97,7 @@ impl SendGridRestClient {
             generation: "dynamic".to_string(),
         };
 
+        println!("[sendgrid-connector] POST {}/templates (create_template)", self.host);
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .with_header("Content-Type", "application/json")
@@ -133,6 +135,7 @@ impl SendGridRestClient {
         &self,
         template_id: &str,
     ) -> Result<Option<TransactionalTemplate>, String> {
+        println!("[sendgrid-connector] GET {}/templates/{} (get_template)", self.host, template_id);
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .append_path_segment(format!("/{}", template_id))
@@ -192,9 +195,14 @@ impl SendGridRestClient {
             test_data: None,
         };
 
+        // POST to /v3/templates/{id}/versions to add a version (content) to the template.
+        // Without the /versions segment SendGrid treats POST /v3/templates/{id} as a create
+        // and makes a brand-new duplicate template instead of updating this one (PROP25-2345).
+        println!("[sendgrid-connector] POST {}/templates/{}/versions (update_template)", self.host, template_id);
         let client = FlUrl::new(self.host.clone())
             .append_path_segment(String::from(SendGridEndpoint::Templates))
             .append_path_segment(format!("/{}", template_id))
+            .append_path_segment("/versions")
             .with_header("Content-Type", "application/json")
             .with_header("Authorization", format!("Bearer {}", self.app_token));
 
