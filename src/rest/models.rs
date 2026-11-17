@@ -34,6 +34,12 @@ pub struct SendGridEmail {
     pub personalizations: Vec<Personalization>,
     #[serde(rename = "template_id", skip_serializing_if = "Option::is_none")]
     pub template_id: Option<String>,
+    #[serde(rename = "reply_to", skip_serializing_if = "Option::is_none")]
+    pub reply_to: Option<EmailAddress>,
+    #[serde(rename = "subject", skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+    #[serde(rename = "content", skip_serializing_if = "Option::is_none")]
+    pub content: Option<Vec<Content>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

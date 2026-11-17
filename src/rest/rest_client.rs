@@ -49,6 +49,9 @@ impl SendGridRestClient {
                 dynamic_template_data: placeholders,
             }],
             template_id: Some(template_id.to_string()),
+            reply_to: None,
+            subject: None,
+            content: None,
         };
 
         println!("[sendgrid-connector] POST {}/mail/send", self.host);
@@ -86,6 +89,65 @@ impl SendGridRestClient {
             template_id, code, parsed
         );
         Err(msg)
+    }
+
+    /// Sends a plain-text email without a template.
+    /// `reply_to` lets the recipient answer someone other than the sender
+    /// (for example, a site visitor who filled in a contact form).
+    pub async fn send_email(
+        &self,
+        email_from: EmailAddress,
+        email_to: Vec<EmailAddress>,
+        reply_to: Option<EmailAddress>,
+        subject: &str,
+        plain_text: &str,
+    ) -> Result<String, String> {
+        let payload = SendGridEmail {
+            from: email_from,
+            personalizations: vec![Personalization {
+                to: email_to,
+                cc: None,
+                bcc: None,
+                dynamic_template_data: None,
+            }],
+            template_id: None,
+            reply_to,
+            subject: Some(subject.to_string()),
+            content: Some(vec![Content {
+                content_type: "text/plain".to_string(),
+                value: plain_text.to_string(),
+            }]),
+        };
+
+        println!("[sendgrid-connector] POST {}/mail/send (send_email)", self.host);
+        let client = FlUrl::new(self.host.clone())
+            .append_path_segment(String::from(SendGridEndpoint::MailSend))
+            .with_header("Content-Type", "application/json")
+            .with_header("Authorization", format!("Bearer {}", self.app_token));
+
+        let response = client
+            .post_json(&payload)
+            .await
+            .map_err(|e| format!("HTTP POST failed: {:?}", e))?;
+
+        let code = StatusCode::from_u16(response.get_status_code())
+            .map_err(|e| format!("Failed to read status result: {:?}", e))?;
+
+        if code == StatusCode::ACCEPTED {
+            return Ok(format!("Successfully sent email: '{}'", subject));
+        }
+
+        let body = response
+            .receive_body()
+            .await
+            .map_err(|e| format!("Failed to receive body: {:?}", e))?;
+        let parsed = String::from_utf8(body)
+            .map_err(|e| format!("Failed to convert from_utf8 body: {}", e))?;
+
+        Err(format!(
+            "Failed to send_email '{}'. Response status: {:?}. Message: {}",
+            subject, code, parsed
+        ))
     }
 
     pub async fn create_template(
@@ -310,6 +372,39 @@ mod test {
                 assert!(false)
             }
         }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_send_email_with_reply_to() {
+        dotenv().ok();
+        let sendgrid_api_key = std::env::var("SENDGRID_API_KEY").unwrap();
+        let email_to = std::env::var("SENDGRID_TO").unwrap();
+        let email_from = std::env::var("SENDGRID_FROM").unwrap();
+        let reply_to = std::env::var("SENDGRID_REPLY_TO").unwrap();
+
+        let client = SendGridRestClient::new(sendgrid_api_key, None);
+        let result = client
+            .send_email(
+                EmailAddress {
+                    email: email_from,
+                    name: Some("Test Sender".to_string()),
+                },
+                vec![EmailAddress {
+                    email: email_to,
+                    name: None,
+                }],
+                Some(EmailAddress {
+                    email: reply_to,
+                    name: Some("Test Reply".to_string()),
+                }),
+                "[test] send_email with reply_to",
+                "Plain text body.\nSecond line <b>not html</b>.",
+            )
+            .await;
+
+        println!("{:?}", result);
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
